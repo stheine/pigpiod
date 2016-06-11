@@ -16,7 +16,7 @@
 // [x] set_glitch_filter
 // [x] spi_open
 // [x] spi_close
-// [ ] spi_xfer
+// [x] spi_xfer
 
 // [ ] time_time
 // [ ] time_sleep
@@ -184,6 +184,26 @@ static NAN_METHOD(callback) {
   if(rc < 0) {
     return ThrowPigpiodError(rc, "callback");
   }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+static NAN_METHOD(callback_cancel) {
+  if(info.Length() < 1    ||
+     !info[0]->IsUint32()    // callback_id
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "callback_cancel", ""));
+  }
+
+  unsigned callback_id = info[0]->Uint32Value();
+
+  int rc = callback_cancel(callback_id);
+  if(rc != 0) {
+    return ThrowPigpiodError(rc, "callback_cancel");
+  }
+
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -990,6 +1010,7 @@ NAN_MODULE_INIT(InitAll) {
   SetFunction(target, "gpioGetServoPulsewidth", gpioGetServoPulsewidth);
 
   SetFunction(target, "callback", callback);
+  SetFunction(target, "callback_cancel", callback_cancel);
   SetFunction(target, "set_watchdog", set_watchdog);
   SetFunction(target, "gpioSetAlertFunc", gpioSetAlertFunc);
 

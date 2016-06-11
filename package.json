@@ -28,5 +28,8 @@
   ],
   "author": "stheine",
   "license": "MIT",
-  "gypfile": true
+  "gypfile": true,
+  "devDependencies": {
+    "eslint": "2.12.0"
+  }
 }
