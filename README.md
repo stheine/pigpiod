@@ -39,4 +39,5 @@ I have developed and tested on Node.js 6.2.0, so it should be working ok here. I
 ## Thanks
 
 [pigpio library and pigpiod](http://abyz.co.uk/rpi/pigpio/) Thanks to _joan2937_ for the development and documentation of the pigpio C library.
-[pigpio](https://github.com/fivdi/pigpio) Thanks for fivdi for his work on the pigpio module for Node.js. I used this as the base for my development and got additional development help.
+
+[pigpio](https://github.com/fivdi/pigpio) Thanks for _fivdi_ for his work on the pigpio module for Node.js. I used this as the base for my development and got additional development help.
