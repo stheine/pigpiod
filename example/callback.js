@@ -1,12 +1,8 @@
 'use strict';
 
-const pigpiod  = require('bindings')('pigpiod.node');
+const pigpiod = require('../pigpiod.js');
 
-const GPIO_WIND            = 25   // Pin 22 / GPIO25 - Windmelder
-
-const RISING_EDGE  = 0;
-const FALLING_EDGE = 1;
-const EITHER_EDGE  = 2;
+const GPIO_WIND = 25; // Pin 22 / GPIO25 - Windmelder
 
 
 
@@ -24,7 +20,7 @@ const gpioWindCallback = function(gpio, level, tick) {
 };
 
 if((callbackId =
-  pigpiod.callback(pi, GPIO_WIND, FALLING_EDGE, gpioWindCallback)) < 0
+  pigpiod.callback(pi, GPIO_WIND, pigpiod.FALLING_EDGE, gpioWindCallback)) < 0
 ) {
   throw new Error('Failed to pigpiod.callback()');
 }
