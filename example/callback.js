@@ -42,5 +42,5 @@ setTimeout(() => {
   pigpiod.pigpio_stop(pi);
 
   // TODO why is not going down automatically?
-//  process.exit();
+  process.exit();
 }, 5000);

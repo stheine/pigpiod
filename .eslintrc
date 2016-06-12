@@ -1,0 +1,44 @@
+{
+  extends: 'es/2015/server',
+
+//  ecmaFeatures: {
+//    jsx: true
+//  },
+
+//  plugins: [
+//    'react'
+//  ],
+
+  rules : {
+    'array-bracket-spacing': [2, 'never'],
+    'dot-location': [2, 'property'],
+    'linebreak-style': 0,
+
+    'no-spaced-func': 2,
+
+    'object-curly-spacing': [2, 'never'],
+    'object-shorthand': 0,
+    'operator-linebreak': 0,
+
+    'space-after-keywords': 0,
+    'space-before-function-paren': [2, 'never'],
+
+    'lines-around-comment': 0,
+    'no-inline-comments': 0,
+    'no-multiple-empty-lines': 0,
+    'no-multi-spaces': 0,
+    'key-spacing': 0,
+    'no-warning-comments': 0,
+    'no-plusplus': 0,
+
+    'keyword-spacing': ['error', {overrides: {
+      catch: {after: false},
+      if: {after: false},
+      for: {after: false},
+      switch: {after: false},
+      while: {after: false}
+    }}],
+
+    'max-len': ['error', 80]
+  }
+}
