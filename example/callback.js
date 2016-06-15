@@ -1,6 +1,6 @@
 'use strict';
 
-const pigpiod = require('../pigpiod.js');
+const pigpiod = require('../lib/pigpiod.js');
 
 const GPIO_WIND = 25; // Pin 22 / GPIO25 - Windmelder
 

@@ -1,6 +1,6 @@
 'use strict';
 
-const pigpiod  = require('../pigpiod.js');
+const pigpiod  = require('../lib/pigpiod.js');
 
 const mcp3204SpiChannel  = 0  // SPI Channel 0
 let   pi;
