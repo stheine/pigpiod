@@ -2,7 +2,7 @@
   "name": "pigpiod",
   "version": "0.0.0",
   "description": "Interface for pigpiod",
-  "main": "pigpiod.js",
+  "main": "lib/pigpiod.js",
   "directories": {
     "example": "example",
     "test": "test"
