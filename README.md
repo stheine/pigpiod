@@ -34,6 +34,21 @@ I have developed and tested on Node.js 6.2.0, so it should be working ok here. I
 
 ## Usage
 
+```
+const pigpiod = require('pigpiod');
+
+let pi = pigpiod.pigpio_start();
+
+pigpiod.dht(pi, 18) // read DHT sensor on port 18
+.then(dhtResult => {
+  console.log(dhtResult);
+
+  pigpiod.pigpio_stop(pi);
+
+  process.exit(dhtResult.status);
+});
+```
+
 ## API documentation
 
 ## Thanks
