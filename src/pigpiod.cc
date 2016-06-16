@@ -401,14 +401,8 @@ NAN_METHOD(spi_close) {
   if(rc != 0) {
     return ThrowPigpiodError(rc, "spi_close");
   }
-}
 
-
-char *v8ToCharPtr(v8::Local<v8::Value> v8Value) {
-  v8::String::Utf8Value string(v8Value);
-  char *charPtr = (char *) malloc(string.length() + 1);
-  strcpy(charPtr, *string);
-  return charPtr;
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -456,6 +450,179 @@ NAN_METHOD(spi_xfer) {
 
   info.GetReturnValue().Set(rc);
 }
+
+
+
+// ###########################################################################
+// Serial
+// ###########################################################################
+
+char *v8ToCharPtr(v8::Local<v8::Value> v8Value) {
+  v8::String::Utf8Value string(v8Value);
+  char *charPtr = (char *) malloc(string.length() + 1);
+  strcpy(charPtr, *string);
+  return charPtr;
+}
+
+
+NAN_METHOD(serial_open) {
+  if(info.Length() < 4    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsString() || // ser_tty
+     !info[2]->IsUint32() || // baud
+     !info[3]->IsUint32()    // ser_flags
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_open", ""));
+  }
+
+  int      pi        = info[0]->Int32Value();
+  char*    ser_tty   = v8ToCharPtr(info[1]->ToString());
+  unsigned baud      = info[2]->Uint32Value();
+  unsigned ser_flags = info[3]->Uint32Value();
+
+  int rc = serial_open(pi, ser_tty, baud, ser_flags);
+  if(rc < 0) {
+    return ThrowPigpiodError(rc, "serial_open");
+  }
+
+  free(ser_tty);
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_close) {
+  if(info.Length() < 2    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32()    // handle
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_close", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+
+  int rc = serial_close(pi, handle);
+  if(rc != 0) {
+    return ThrowPigpiodError(rc, "serial_close");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_write_byte) {
+  if(info.Length() < 3    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32() || // handle
+     !info[2]->IsUint32()    // bVal
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_write_byte", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+  unsigned bVal   = info[2]->Uint32Value();
+
+  int rc = serial_write_byte(pi, handle, bVal);
+  if(rc != 0) {
+    return ThrowPigpiodError(rc, "serial_write_byte");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_read_byte) {
+  if(info.Length() < 2    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32()    // handle
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_read_byte", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+
+  int rc = serial_read_byte(pi, handle);
+  if(rc < 0) {
+    return ThrowPigpiodError(rc, "serial_read_byte");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_write) {
+  if(info.Length() < 4    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32() || // handle
+     !info[2]->IsString() || // buf
+     !info[3]->IsUint32()    // count
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_write", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+  char*    buf    = v8ToCharPtr(info[2]->ToString());
+  unsigned count  = info[3]->Uint32Value();
+
+  int rc = serial_write(pi, handle, buf, count);
+  if(rc != 0) {
+    return ThrowPigpiodError(rc, "serial_write");
+  }
+
+  free(buf);
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_read) {
+  if(info.Length() < 4    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32() || // handle
+     !info[2]->IsObject() || // buf
+     !info[3]->IsUint32()    // count
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_read", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+  char*    buf    = node::Buffer::Data(info[2]->ToObject());
+  unsigned count  = info[3]->Uint32Value();
+
+  int rc = serial_read(pi, handle, buf, count);
+  if(rc <= 0) {
+    return ThrowPigpiodError(rc, "serial_read");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+NAN_METHOD(serial_data_available) {
+  if(info.Length() < 2    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32()    // handle
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_data_available", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned handle = info[1]->Uint32Value();
+
+  int rc = serial_data_available(pi, handle);
+  if(rc < 0) {
+    return ThrowPigpiodError(rc, "serial_data_available");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
 
 
 
@@ -598,6 +765,13 @@ NAN_MODULE_INIT(InitAll) {
   SetFunction(target, "spi_open", spi_open);
   SetFunction(target, "spi_close", spi_close);
   SetFunction(target, "spi_xfer", spi_xfer);
+  SetFunction(target, "serial_open", serial_open);
+  SetFunction(target, "serial_close", serial_close);
+  SetFunction(target, "serial_write_byte", serial_write_byte);
+  SetFunction(target, "serial_read_byte", serial_read_byte);
+  SetFunction(target, "serial_write", serial_write);
+  SetFunction(target, "serial_read", serial_read);
+  SetFunction(target, "serial_data_available", serial_data_available);
   SetFunction(target, "get_current_tick", get_current_tick);
   SetFunction(target, "get_hardware_revision", get_hardware_revision);
   SetFunction(target, "get_pigpio_version", get_pigpio_version);
