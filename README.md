@@ -39,6 +39,11 @@ const pigpiod = require('pigpiod');
 
 let pi = pigpiod.pigpio_start();
 
+// MCP3204
+const a2dValue = pigpiod.mcp3204(pi, 0, 0) // read A-D converter value on MCP3204 on SPI channel 0, MCP channel 0
+console.log(`a2dValue = ${a2dValue}`);
+
+// DHT22
 pigpiod.dht(pi, 18) // read DHT sensor on port 18
 .then(dhtResult => {
   console.log(dhtResult);
