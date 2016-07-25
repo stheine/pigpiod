@@ -43,7 +43,17 @@ let pi = pigpiod.pigpio_start();
 const a2dValue = pigpiod.mcp3204(pi, 0, 0) // read A-D converter value on MCP3204 on SPI channel 0, MCP channel 0
 console.log(`a2dValue = ${a2dValue}`);
 
-// DHT22
+// DHT22 (this is a C-based implementation reading the sensor data)
+pigpiod.dht22(pi, 18) // read DHT22 sensor on port 18
+.then(dhtResult => {
+  console.log(dhtResult);
+
+  pigpiod.pigpio_stop(pi);
+
+  process.exit(dhtResult.status);
+});
+
+// DHT (probably obsolete, due to the above)
 pigpiod.dht(pi, 18) // read DHT sensor on port 18
 .then(dhtResult => {
   console.log(dhtResult);

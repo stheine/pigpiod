@@ -2,8 +2,8 @@
 #include <pigpiod_if2.h>
 #include <nan.h>
 
-// [ ] time_time -> replace by Date or moment
-// [ ] time_sleep -> replace by setTimeout
+// time_time -> replace by Date or moment in js
+// time_sleep -> replace by setTimeout in js
 
 
 #if NODE_VERSION_AT_LEAST(0, 11, 13)
@@ -685,6 +685,362 @@ NAN_METHOD(get_pigpio_version) {
 
 
 // ###########################################################################
+// DHT22
+// I add this C implementation, since the js based implementation is
+// not reliable, as - due to node.js's nature - it's async handling
+// might be busy with other tasks, so the interrupt/ callback handling
+// needed to read the DHT22 data is too slow.
+// The code is based on the example code taken from
+// http://abyz.co.uk/rpi/pigpio/examples.html
+// and I shrunk it down to the pure DHT22 handling, to make it as
+// simple as possible to get it included here.
+// ###########################################################################
+
+#define DHT_GOOD         0
+#define DHT_BAD_CHECKSUM 1
+#define DHT_BAD_DATA     2
+#define DHT_TIMEOUT      3
+
+struct DHT22_s;
+typedef struct DHT22_s DHT22_t;
+
+typedef struct
+{
+  int    pi;
+  int    gpio;
+  int    status;
+  float  temperature;
+  float  humidity;
+  double timestamp;
+} DHT22_data_t;
+typedef void (*DHT22_CB_t)(DHT22_data_t);
+
+struct DHT22_s
+{
+  int          pi;
+  int          gpio;
+  int          seconds;
+  DHT22_CB_t   cb;
+  int          _cb_id;
+  pthread_t   *_pth;
+  int          _in_code;
+  union
+  {
+    uint8_t    _byte[8];
+    uint64_t   _code;
+  };
+  int          _bits;
+  int          _ready;
+  int          _new_reading;
+  DHT22_data_t _data;
+  uint32_t     _last_edge_tick;
+  int          _ignore_reading;
+};
+
+static void _decode_dht22(DHT22_t *self)
+{
+  uint8_t chksum;
+  float div;
+  float t, h;
+  int valid;
+
+  self->_data.timestamp = time_time();
+
+  chksum = (self->_byte[1] + self->_byte[2] +
+            self->_byte[3] + self->_byte[4]) & 0xFF;
+
+  valid = 0;
+
+  if (chksum == self->_byte[0])
+  {
+    valid = 1;
+
+    h = ((float)((self->_byte[4]<<8) + self->_byte[3]))/10.0;
+
+    if (h > 110.0) valid = 0;
+
+    if (self->_byte[2] & 128) div = -10.0; else div = 10.0;
+
+    t = ((float)(((self->_byte[2]&127)<<8) + self->_byte[1])) / div;
+
+    if ((t < -50.0) || (t > 135.0)) valid = 0;
+
+    if (valid)
+    {
+      self->_data.temperature = t;
+      self->_data.humidity = h;
+      self->_data.status = DHT_GOOD;
+    }
+    else
+    {
+      self->_data.status = DHT_BAD_DATA;
+    }
+  }
+  else
+  {
+    self->_data.status = DHT_BAD_CHECKSUM;
+  }
+
+  self->_ready = 1;
+  self->_new_reading = 1;
+
+  if (self->cb) (self->cb)(self->_data);
+}
+
+static void _cb(
+  int pi, unsigned gpio, unsigned level, uint32_t tick, void *user)
+{
+  DHT22_t *self = (DHT22_t *)user;
+  int edge_len;
+
+  edge_len = tick - self->_last_edge_tick;
+  self->_last_edge_tick = tick;
+
+  if (edge_len > 10000)
+  {
+    self->_in_code = 1;
+    self->_bits = -2;
+    self->_code = 0;
+  }
+  else if (self->_in_code)
+  {
+    self->_bits++;
+    if (self->_bits >= 1)
+    {
+      self->_code <<= 1;
+
+      if ((edge_len >= 60) && (edge_len <= 100))
+      {
+        /* 0 bit */
+      }
+      else if ((edge_len > 100) && (edge_len <= 150))
+      {
+        /* 1 bit */
+        self->_code += 1;
+      }
+      else
+      {
+        /* invalid bit */
+        self->_in_code = 0;
+      }
+
+      if (self->_in_code)
+      {
+        if (self->_bits == 40)
+        {
+          if (!self->_ignore_reading) _decode_dht22(self);
+        }
+      }
+    }
+  }
+}
+
+void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
+{
+  DHT22_t *self;
+
+  self = (DHT22_t *)malloc(sizeof(DHT22_t));
+
+  if (!self) {
+    return;
+  }
+
+  self->pi = pi;
+  self->gpio = gpio;
+  self->seconds = 0;
+  self->cb = cb_func;
+
+  self->_data.pi = pi;
+  self->_data.gpio = gpio;
+  self->_data.status = 0;
+  self->_data.temperature = 0.0;
+  self->_data.humidity = 0.0;
+
+  self->_ignore_reading = 0;
+
+  self->_pth = NULL;
+
+  self->_in_code = 0;
+
+  self->_ready = 0;
+  self->_new_reading = 0;
+
+  set_mode(pi, gpio, PI_INPUT);
+
+  self->_last_edge_tick = get_current_tick(pi) - 10000;
+
+  self->_cb_id = callback_ex(pi, gpio, RISING_EDGE, _cb, self);
+
+  int i;
+  double timestamp;
+
+  self->_new_reading = 0;
+
+  // Trigger read
+  set_mode(pi, gpio, PI_OUTPUT);
+  gpio_write(pi, gpio, 0);
+  time_sleep(0.018);
+  set_mode(pi, gpio, PI_INPUT);
+
+  timestamp = time_time();
+
+  /* timeout if no new reading */
+
+  for (i=0; i<5; i++) /* 0.25 seconds */
+  {
+    time_sleep(0.05);
+    if (self->_new_reading) break;
+  }
+
+  if (!self->_new_reading)
+  {
+    self->_data.timestamp = timestamp;
+    self->_data.status = DHT_TIMEOUT;
+    self->_ready = 1;
+
+    if (self->cb) (self->cb)(self->_data);
+  }
+
+  if (self->_pth)
+  {
+    stop_thread(self->_pth);
+    self->_pth = NULL;
+  }
+
+  if (self->_cb_id >= 0)
+  {
+    callback_cancel(self->_cb_id);
+    self->_cb_id = -1;
+  }
+  free(self);
+}
+
+
+#if NODE_VERSION_AT_LEAST(0, 11, 13)
+static void dht22EventLoopHandler(uv_async_t* handle);
+#else
+static void dht22EventLoopHandler(uv_async_t* handle, int status);
+#endif
+
+
+class DhtCallback_t {
+public:
+  DhtCallback_t() : callback_(0) {
+  }
+
+  virtual ~DhtCallback_t() {
+    if (callback_) {
+      uv_unref((uv_handle_t *) &async_);
+      delete callback_;
+    }
+
+    uv_close((uv_handle_t *) &async_, 0);
+
+    callback_ = 0;
+  }
+
+  void AsyncSend() {
+    uv_async_send(&async_);
+  }
+
+  void SetCallback(Nan::Callback *callback) {
+    if (callback_) {
+      uv_unref((uv_handle_t *) &async_);
+      delete callback_;
+    }
+
+    callback_ = callback;
+
+    if (callback_) {
+      uv_ref((uv_handle_t *) &async_);
+    }
+  }
+
+  Nan::Callback *Callback() {
+    return callback_;
+  }
+
+protected:
+  uv_async_t async_;
+
+private:
+  Nan::Callback *callback_;
+};
+
+
+class Dht22_t : public DhtCallback_t {
+public:
+  Dht22_t() : DhtCallback_t() {
+    uv_async_init(uv_default_loop(), &async_, dht22EventLoopHandler);
+
+    // Prevent async from keeping event loop alive, for the time being.
+    uv_unref((uv_handle_t *) &async_);
+  }
+};
+
+
+static Dht22_t dht22_g;
+
+// Globals, protected by semaphore, passing the callback parameters
+// from the C-handler into the js-event-loop
+static float temperature_g;
+static float humidity_g;
+static int   status_g;
+
+// dht22Handler is not executed in the event loop thread
+void dht22Handler(DHT22_data_t r) {
+  uv_sem_wait(&sem_g);
+
+  temperature_g = r.temperature;
+  humidity_g    = r.humidity;
+  status_g      = r.status;
+
+  dht22_g.AsyncSend();
+}
+
+
+// dht22EventLoopHandler is executed in the event loop thread.
+#if NODE_VERSION_AT_LEAST(0, 11, 13)
+static void dht22EventLoopHandler(uv_async_t* handle) {
+#else
+static void dht22EventLoopHandler(uv_async_t* handle, int status) {
+#endif
+  Nan::HandleScope scope;
+
+  if (dht22_g.Callback()) {
+    v8::Local<v8::Value> args[3] = {
+      Nan::New<v8::Number>(temperature_g),
+      Nan::New<v8::Number>(humidity_g),
+      Nan::New<v8::Integer>(status_g)
+    };
+    dht22_g.Callback()->Call(3, args);
+  }
+
+  uv_sem_post(&sem_g);
+}
+
+
+static NAN_METHOD(get_dht22) {
+  if(info.Length() < 3    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32() || // gpio
+     !info[2]->IsFunction()  // handler
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "get_dht22", ""));
+  }
+
+  int      pi   = info[0]->Int32Value();
+  unsigned gpio = info[1]->Uint32Value();
+  Nan::Callback *nanCallback = new Nan::Callback(info[2].As<v8::Function>());
+  DHT22_CB_t callbackFunc = dht22Handler;
+  dht22_g.SetCallback(nanCallback);
+
+  DHT22(pi, gpio, callbackFunc);
+}
+
+
+
+// ###########################################################################
 // Module init
 // ###########################################################################
 
@@ -775,6 +1131,7 @@ NAN_MODULE_INIT(InitAll) {
   SetFunction(target, "get_current_tick", get_current_tick);
   SetFunction(target, "get_hardware_revision", get_hardware_revision);
   SetFunction(target, "get_pigpio_version", get_pigpio_version);
+  SetFunction(target, "get_dht22", get_dht22);
 }
 
 NODE_MODULE(pigpio, InitAll)

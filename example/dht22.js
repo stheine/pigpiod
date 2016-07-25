@@ -15,7 +15,7 @@ if((pi = pigpiod.pigpio_start()) < 0) {
 console.log('start: ', moment().format());
 
 setInterval(() => {
-  pigpiod.dht(pi, 18).then(result => {
+  pigpiod.dht22(pi, 18).then(result => {
     if(result.status) {
       console.log('failed: status=', result.status);
     } else {
