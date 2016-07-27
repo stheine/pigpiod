@@ -706,23 +706,16 @@ typedef struct DHT22_s DHT22_t;
 
 typedef struct
 {
-  int    pi;
-  int    gpio;
-  int    status;
   float  temperature;
   float  humidity;
-  double timestamp;
+  int    status;
 } DHT22_data_t;
 typedef void (*DHT22_CB_t)(DHT22_data_t);
 
 struct DHT22_s
 {
-  int          pi;
-  int          gpio;
-  int          seconds;
   DHT22_CB_t   cb;
   int          _cb_id;
-  pthread_t   *_pth;
   int          _in_code;
   union
   {
@@ -730,11 +723,9 @@ struct DHT22_s
     uint64_t   _code;
   };
   int          _bits;
-  int          _ready;
-  int          _new_reading;
+  int          _data_finished;
   DHT22_data_t _data;
   uint32_t     _last_edge_tick;
-  int          _ignore_reading;
 };
 
 static void _decode_dht22(DHT22_t *self)
@@ -742,38 +733,34 @@ static void _decode_dht22(DHT22_t *self)
   uint8_t chksum;
   float div;
   float t, h;
-  int valid;
-
-  self->_data.timestamp = time_time();
 
   chksum = (self->_byte[1] + self->_byte[2] +
             self->_byte[3] + self->_byte[4]) & 0xFF;
 
-  valid = 0;
-
   if (chksum == self->_byte[0])
   {
-    valid = 1;
+    h = ((float)((self->_byte[4]<<8) + self->_byte[3])) / 10.0;
 
-    h = ((float)((self->_byte[4]<<8) + self->_byte[3]))/10.0;
-
-    if (h > 110.0) valid = 0;
-
-    if (self->_byte[2] & 128) div = -10.0; else div = 10.0;
-
-    t = ((float)(((self->_byte[2]&127)<<8) + self->_byte[1])) / div;
-
-    if ((t < -50.0) || (t > 135.0)) valid = 0;
-
-    if (valid)
+    if (self->_byte[2] & 128)
     {
-      self->_data.temperature = t;
-      self->_data.humidity = h;
-      self->_data.status = DHT_GOOD;
+      div = -10.0;
     }
     else
     {
+      div = 10.0;
+    }
+
+    t = ((float)(((self->_byte[2]&127)<<8) + self->_byte[1])) / div;
+
+    if ((h > 110.0) || (t < -50.0) || (t > 135.0))
+    {
       self->_data.status = DHT_BAD_DATA;
+    }
+    else
+    {
+      self->_data.temperature = t;
+      self->_data.humidity    = h;
+      self->_data.status      = DHT_GOOD;
     }
   }
   else
@@ -781,14 +768,16 @@ static void _decode_dht22(DHT22_t *self)
     self->_data.status = DHT_BAD_CHECKSUM;
   }
 
-  self->_ready = 1;
-  self->_new_reading = 1;
+  self->_data_finished = 1;
 
-  if (self->cb) (self->cb)(self->_data);
+  if (self->cb)
+  {
+    (self->cb)(self->_data);
+  }
 }
 
 static void _cb(
-  int pi, unsigned gpio, unsigned level, uint32_t tick, void *user)
+  int cbPi, unsigned cbGpio, unsigned level, uint32_t tick, void *user)
 {
   DHT22_t *self = (DHT22_t *)user;
   int edge_len;
@@ -828,7 +817,7 @@ static void _cb(
       {
         if (self->_bits == 40)
         {
-          if (!self->_ignore_reading) _decode_dht22(self);
+          _decode_dht22(self);
         }
       }
     }
@@ -837,44 +826,27 @@ static void _cb(
 
 void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
 {
+  int i;
   DHT22_t *self;
 
   self = (DHT22_t *)malloc(sizeof(DHT22_t));
-
   if (!self) {
     return;
   }
 
-  self->pi = pi;
-  self->gpio = gpio;
-  self->seconds = 0;
-  self->cb = cb_func;
-
-  self->_data.pi = pi;
-  self->_data.gpio = gpio;
-  self->_data.status = 0;
   self->_data.temperature = 0.0;
-  self->_data.humidity = 0.0;
-
-  self->_ignore_reading = 0;
-
-  self->_pth = NULL;
-
-  self->_in_code = 0;
-
-  self->_ready = 0;
-  self->_new_reading = 0;
+  self->_data.humidity    = 0.0;
+  self->_data.status      = 0;
+  self->cb                = cb_func;
+  self->_in_code          = 0;
+  self->_data_finished    = 0;
+  self->_last_edge_tick = get_current_tick(pi) - 10000;
 
   set_mode(pi, gpio, PI_INPUT);
 
-  self->_last_edge_tick = get_current_tick(pi) - 10000;
-
   self->_cb_id = callback_ex(pi, gpio, RISING_EDGE, _cb, self);
 
-  int i;
-  double timestamp;
-
-  self->_new_reading = 0;
+  self->_data_finished = 0;
 
   // Trigger read
   set_mode(pi, gpio, PI_OUTPUT);
@@ -882,29 +854,25 @@ void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
   time_sleep(0.018);
   set_mode(pi, gpio, PI_INPUT);
 
-  timestamp = time_time();
-
   /* timeout if no new reading */
 
-  for (i=0; i<5; i++) /* 0.25 seconds */
+  for (i = 0; i < 5; i++) /* 0.25 seconds */
   {
     time_sleep(0.05);
-    if (self->_new_reading) break;
+    if (self->_data_finished)
+    {
+      break;
+    }
   }
 
-  if (!self->_new_reading)
+  if (!self->_data_finished)
   {
-    self->_data.timestamp = timestamp;
     self->_data.status = DHT_TIMEOUT;
-    self->_ready = 1;
 
-    if (self->cb) (self->cb)(self->_data);
-  }
-
-  if (self->_pth)
-  {
-    stop_thread(self->_pth);
-    self->_pth = NULL;
+    if (self->cb)
+    {
+      (self->cb)(self->_data);
+    }
   }
 
   if (self->_cb_id >= 0)
@@ -1020,7 +988,7 @@ static void dht22EventLoopHandler(uv_async_t* handle, int status) {
 }
 
 
-static NAN_METHOD(get_dht22) {
+static NAN_METHOD(dht22_get) {
   if(info.Length() < 3    ||
      !info[0]->IsInt32()  || // pi
      !info[1]->IsUint32() || // gpio
@@ -1131,7 +1099,7 @@ NAN_MODULE_INIT(InitAll) {
   SetFunction(target, "get_current_tick", get_current_tick);
   SetFunction(target, "get_hardware_revision", get_hardware_revision);
   SetFunction(target, "get_pigpio_version", get_pigpio_version);
-  SetFunction(target, "get_dht22", get_dht22);
+  SetFunction(target, "dht22_get", dht22_get);
 }
 
 NODE_MODULE(pigpio, InitAll)
