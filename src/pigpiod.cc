@@ -427,7 +427,7 @@ NAN_METHOD(spi_xfer) {
      !info[0]->IsInt32()  || // pi
      !info[1]->IsUint32() || // handle
      !info[2]->IsObject() || // txBuf
-     !info[3]->IsObject() || // rxBuf
+     !info[3]->IsObject() || // rxBuf    -> output buffer
      !info[4]->IsUint32()    // count
   ) {
     return Nan::ThrowError(Nan::ErrnoException(EINVAL, "spi_xfer", ""));
@@ -583,7 +583,7 @@ NAN_METHOD(serial_read) {
   if(info.Length() < 4    ||
      !info[0]->IsInt32()  || // pi
      !info[1]->IsUint32() || // handle
-     !info[2]->IsObject() || // buf
+     !info[2]->IsObject() || // buf    -> output buffer
      !info[3]->IsUint32()    // count
   ) {
     return Nan::ThrowError(Nan::ErrnoException(EINVAL, "serial_read", ""));
@@ -714,11 +714,11 @@ typedef void (*DHT22_CB_t)(DHT22_data_t);
 
 struct DHT22_s
 {
-  DHT22_CB_t   cb;
   int          _cb_id;
   int          _in_code;
   union
   {
+    char      *_char[8];
     uint8_t    _byte[8];
     uint64_t   _code;
   };
@@ -769,11 +769,6 @@ static void _decode_dht22(DHT22_t *self)
   }
 
   self->_data_finished = 1;
-
-  if (self->cb)
-  {
-    (self->cb)(self->_data);
-  }
 }
 
 static void _cb(
@@ -824,7 +819,7 @@ static void _cb(
   }
 }
 
-void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
+void DHT22(int pi, int gpio, char *buf)
 {
   int i;
   DHT22_t *self;
@@ -837,7 +832,6 @@ void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
   self->_data.temperature = 0.0;
   self->_data.humidity    = 0.0;
   self->_data.status      = 0;
-  self->cb                = cb_func;
   self->_in_code          = 0;
   self->_data_finished    = 0;
   self->_last_edge_tick = get_current_tick(pi) - 10000;
@@ -867,12 +861,11 @@ void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
 
   if (!self->_data_finished)
   {
-    self->_data.status = DHT_TIMEOUT;
-
-    if (self->cb)
-    {
-      (self->cb)(self->_data);
-    }
+    memset((void *)buf, 0, 8);
+  }
+  else
+  {
+    memcpy((void *)buf, (void *)(&self->_code), 8);
   }
 
   if (self->_cb_id >= 0)
@@ -884,126 +877,20 @@ void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
 }
 
 
-#if NODE_VERSION_AT_LEAST(0, 11, 13)
-static void dht22EventLoopHandler(uv_async_t* handle);
-#else
-static void dht22EventLoopHandler(uv_async_t* handle, int status);
-#endif
-
-
-class DhtCallback_t {
-public:
-  DhtCallback_t() : callback_(0) {
-  }
-
-  virtual ~DhtCallback_t() {
-    if (callback_) {
-      uv_unref((uv_handle_t *) &async_);
-      delete callback_;
-    }
-
-    uv_close((uv_handle_t *) &async_, 0);
-
-    callback_ = 0;
-  }
-
-  void AsyncSend() {
-    uv_async_send(&async_);
-  }
-
-  void SetCallback(Nan::Callback *callback) {
-    if (callback_) {
-      uv_unref((uv_handle_t *) &async_);
-      delete callback_;
-    }
-
-    callback_ = callback;
-
-    if (callback_) {
-      uv_ref((uv_handle_t *) &async_);
-    }
-  }
-
-  Nan::Callback *Callback() {
-    return callback_;
-  }
-
-protected:
-  uv_async_t async_;
-
-private:
-  Nan::Callback *callback_;
-};
-
-
-class Dht22_t : public DhtCallback_t {
-public:
-  Dht22_t() : DhtCallback_t() {
-    uv_async_init(uv_default_loop(), &async_, dht22EventLoopHandler);
-
-    // Prevent async from keeping event loop alive, for the time being.
-    uv_unref((uv_handle_t *) &async_);
-  }
-};
-
-
-static Dht22_t dht22_g;
-
-// Globals, protected by semaphore, passing the callback parameters
-// from the C-handler into the js-event-loop
-static float temperature_g;
-static float humidity_g;
-static int   status_g;
-
-// dht22Handler is not executed in the event loop thread
-void dht22Handler(DHT22_data_t r) {
-  uv_sem_wait(&sem_g);
-
-  temperature_g = r.temperature;
-  humidity_g    = r.humidity;
-  status_g      = r.status;
-
-  dht22_g.AsyncSend();
-}
-
-
-// dht22EventLoopHandler is executed in the event loop thread.
-#if NODE_VERSION_AT_LEAST(0, 11, 13)
-static void dht22EventLoopHandler(uv_async_t* handle) {
-#else
-static void dht22EventLoopHandler(uv_async_t* handle, int status) {
-#endif
-  Nan::HandleScope scope;
-
-  if (dht22_g.Callback()) {
-    v8::Local<v8::Value> args[3] = {
-      Nan::New<v8::Number>(temperature_g),
-      Nan::New<v8::Number>(humidity_g),
-      Nan::New<v8::Integer>(status_g)
-    };
-    dht22_g.Callback()->Call(3, args);
-  }
-
-  uv_sem_post(&sem_g);
-}
-
-
 static NAN_METHOD(dht22_get) {
   if(info.Length() < 3    ||
      !info[0]->IsInt32()  || // pi
      !info[1]->IsUint32() || // gpio
-     !info[2]->IsFunction()  // handler
+     !info[2]->IsObject()    // buf    -> output buffer
   ) {
     return Nan::ThrowError(Nan::ErrnoException(EINVAL, "get_dht22", ""));
   }
 
   int      pi   = info[0]->Int32Value();
   unsigned gpio = info[1]->Uint32Value();
-  Nan::Callback *nanCallback = new Nan::Callback(info[2].As<v8::Function>());
-  DHT22_CB_t callbackFunc = dht22Handler;
-  dht22_g.SetCallback(nanCallback);
+  char*    buf  = node::Buffer::Data(info[2]->ToObject());
 
-  DHT22(pi, gpio, callbackFunc);
+  DHT22(pi, gpio, buf);
 }
 
 
