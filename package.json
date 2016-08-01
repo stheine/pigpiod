@@ -1,8 +1,12 @@
 {
-  "name": "pigpiod",
-  "version": "0.0.0",
-  "description": "Interface for pigpiod",
+  "name": "@stheine/pigpiod",
+  "version": "0.0.1",
+  "description": "node.js interface for pigpiod",
   "main": "lib/pigpiod.js",
+  "contributors": [
+    "Stefan Heine <stheine@arcor.de>"
+  ],
+  "readmeFilename": "README.md",
   "directories": {
     "example": "example",
     "test": "test"
