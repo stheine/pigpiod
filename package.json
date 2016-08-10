@@ -1,6 +1,6 @@
 {
   "name": "@stheine/pigpiod",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "node.js interface for pigpiod",
   "main": "lib/pigpiod.js",
   "contributors": [
