@@ -19,9 +19,9 @@
     "node": ">=0.10.0"
   },
   "dependencies": {
-    "bindings": "~1.2.1",
-    "moment": "2.13.0",
-    "nan": "~2.3.2"
+    "bindings": "1.2.1",
+    "moment": "2.14.1",
+    "nan": "2.4.0"
   },
   "keywords": [
     "gpio",
@@ -34,10 +34,10 @@
   "license": "MIT",
   "gypfile": true,
   "devDependencies": {
-    "eslint": "2.12.0",
-    "eslint-config-es": "0.6.8",
+    "eslint": "3.2.2",
+    "eslint-config-es": "0.8.0",
     "eslint-plugin-extended": "0.2.0",
-    "eslint-plugin-mocha": "2.2.0",
-    "eslint-plugin-react": "5.1.1"
+    "eslint-plugin-mocha": "4.3.0",
+    "eslint-plugin-react": "5.2.2"
   }
 }

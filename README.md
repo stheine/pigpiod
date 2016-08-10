@@ -37,31 +37,19 @@ I have developed and tested on Node.js 6.2.0, so it should be working ok here. I
 ```
 const pigpiod = require('pigpiod');
 
-let pi = pigpiod.pigpio_start();
+let pi  = pigpiod.pigpio_start();
+let spi = pigpiod.spi_open(pi, 0); // SPI channel 0
 
-// MCP3204
-const a2dValue = pigpiod.mcp3204(pi, 0, 0) // read A-D converter value on MCP3204 on SPI channel 0, MCP channel 0
+// read A-D converter value on MCP3204 on SPI channel 0, MCP channel 0
+const a2dValue = pigpiod.mcp3204(pi, spi, 0);
 console.log(`a2dValue = ${a2dValue}`);
 
 // DHT22 (this is a C-based implementation reading the sensor data)
-pigpiod.dht22(pi, 18) // read DHT22 sensor on port 18
-.then(dhtResult => {
-  console.log(dhtResult);
+dhtResult = pigpiod.dht22(pi, 18); // read DHT22 sensor on port 18
+console.log(dhtResult);
 
-  pigpiod.pigpio_stop(pi);
-
-  process.exit(dhtResult.status);
-});
-
-// DHT (probably obsolete, due to the above)
-pigpiod.dht(pi, 18) // read DHT sensor on port 18
-.then(dhtResult => {
-  console.log(dhtResult);
-
-  pigpiod.pigpio_stop(pi);
-
-  process.exit(dhtResult.status);
-});
+pigpiod.spi_close(pi, spi);
+pigpiod.pigpio_stop(pi);
 ```
 
 ## Standard pigpiod API
@@ -213,8 +201,12 @@ The error handling is different, though: Instead of returning an error code, an 
 | [x] | get_pigpio_version | Get the pigpio version |
 | [ ] | pigpiod_if_version | Get the pigpiod_if2 version |
 | [ ] | pigpio_error | Get a text description of an error code. |
-| [ ] | time_sleep | Sleeps for a float number of seconds |
-| [ ] | time_time | Float number of seconds since the epoch |
+| [1] | time_sleep | Sleeps for a float number of seconds |
+| [2] | time_time | Float number of seconds since the epoch |
+
+1: use js setTimeout() instead.
+
+2: use moment() or Date() instead.
 
 ## API documentation
 

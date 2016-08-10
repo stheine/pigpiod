@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 'use strict';
 
+/* eslint-disable no-console */
+/* eslint-disable no-process-exit */
+
 // Reads the data of a DHT22 sensor
 // The DHT sensor is connected to GPIO 18.
 
-const moment  = require('moment');
 const pigpiod = require('../lib/pigpiod.js');
-let   pi;
 
-if((pi = pigpiod.pigpio_start()) < 0) {
+const pi = pigpiod.pigpio_start();
+
+if(pi < 0) {
   throw new Error('Failed to pigpiod.pidpio_start()');
 }
 
-console.log('start: ', moment().format());
+const interval = setInterval(() => {
+  const dht22Data = pigpiod.dht22(pi, 18);
 
-setInterval(() => {
-  pigpiod.dht22(pi, 18).then(result => {
-    if(result.status) {
-      console.log('failed: status=', result.status);
-    } else {
-      console.log('finished: ', moment().format());
-      console.log(result);
-    }
-  })
-  .catch(err => {
-    console.log(err);
-    pigpiod.pigpio_stop(pi);
-    process.exit(1);
-  });
-}, 10000); // do not run more often
+  if(dht22Data.status) {
+    console.log('failed: status=', dht22Data.status);
+  } else {
+    console.log(dht22Data);
+  }
+}, 3000);
+
+setTimeout(() => {
+  clearInterval(interval);
+  pigpiod.pigpio_stop(pi);
+  process.exit();
+}, 10000);

@@ -686,14 +686,18 @@ NAN_METHOD(get_pigpio_version) {
 
 // ###########################################################################
 // DHT22
-// I add this C implementation, since the js based implementation is
-// not reliable, as - due to node.js's nature - it's async handling
-// might be busy with other tasks, so the interrupt/ callback handling
-// needed to read the DHT22 data is too slow.
+// This is a synchronous C implementation, as I failed to code a reliable
+// js based implementation (as - due to node.js's nature - it's
+// async handling might be busy with other tasks, so the
+// interrupt/ callback handling needed to read the DHT22 data is too slow).
 // The code is based on the example code taken from
 // http://abyz.co.uk/rpi/pigpio/examples.html
 // and I shrunk it down to the pure DHT22 handling, to make it as
 // simple as possible to get it included here.
+// Note: the function _decode_dht22() calculates temperature and humidity,
+//       but in fact I'm returning the binary data and re-run that same
+//       calculation in js. This is as I failed to return float/ double
+//       data from C code back into js - let me know if you know...
 // ###########################################################################
 
 #define DHT_GOOD         0
@@ -848,8 +852,7 @@ void DHT22(int pi, int gpio, char *buf)
   time_sleep(0.018);
   set_mode(pi, gpio, PI_INPUT);
 
-  /* timeout if no new reading */
-
+  // timeout if no new reading
   for (i = 0; i < 5; i++) /* 0.25 seconds */
   {
     time_sleep(0.05);
