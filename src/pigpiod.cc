@@ -242,6 +242,9 @@ NAN_METHOD(get_mode) {
   unsigned gpio = info[1]->Uint32Value();
 
   int rc = get_mode(pi, gpio);
+  if (rc < 0) {
+    return ThrowPigpiodError(rc, "get_mode");
+  }
 
   info.GetReturnValue().Set(rc);
 }
@@ -264,6 +267,8 @@ NAN_METHOD(set_pull_up_down) {
   if(rc < 0) {
     return ThrowPigpiodError(rc, "set_pull_up_down");
   }
+
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -304,6 +309,8 @@ NAN_METHOD(gpio_write) {
   if(rc != 0) {
     return ThrowPigpiodError(rc, "gpio_write");
   }
+
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -329,6 +336,8 @@ NAN_METHOD(set_watchdog) {
   if(rc != 0) {
     return ThrowPigpiodError(rc, "set_watchdog");
   }
+
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -354,6 +363,8 @@ NAN_METHOD(set_glitch_filter) {
   if(rc != 0) {
     return ThrowPigpiodError(rc, "set_glitch_filter");
   }
+
+  info.GetReturnValue().Set(rc);
 }
 
 
@@ -443,6 +454,8 @@ NAN_METHOD(spi_xfer) {
 
   int rc = spi_xfer(pi, handle, txBuf, rxBuf, count);
   if(rc != count) {
+    printf("Error from spi_xfer count=%d, rc=%d\n", count, rc);
+    printBits(count, rxBuf); // debugging
     return ThrowPigpiodError(rc, "spi_xfer");
   }
 
@@ -481,11 +494,10 @@ NAN_METHOD(serial_open) {
   unsigned ser_flags = info[3]->Uint32Value();
 
   int rc = serial_open(pi, ser_tty, baud, ser_flags);
+  free(ser_tty);
   if(rc < 0) {
     return ThrowPigpiodError(rc, "serial_open");
   }
-
-  free(ser_tty);
 
   info.GetReturnValue().Set(rc);
 }
@@ -569,11 +581,10 @@ NAN_METHOD(serial_write) {
   unsigned count  = info[3]->Uint32Value();
 
   int rc = serial_write(pi, handle, buf, count);
+  free(buf);
   if(rc != 0) {
     return ThrowPigpiodError(rc, "serial_write");
   }
-
-  free(buf);
 
   info.GetReturnValue().Set(rc);
 }
