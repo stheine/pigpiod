@@ -112,7 +112,7 @@ The error handling is different, though: Instead of returning an error code, an 
 | [ ] | hardware_clock | Start hardware clock on supported GPIO |
 | [ ] | hardware_PWM | Start hardware PWM on supported GPIO |
 | [x] | set_glitch_filter | Set a glitch filter on a GPIO |
-| [ ] | set_noise_filter | Set a noise filter on a GPIO |
+| [x] | set_noise_filter | Set a noise filter on a GPIO |
 
 | | SCRIPTS | |
 | --- | --- | --- |

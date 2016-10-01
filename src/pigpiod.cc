@@ -369,6 +369,31 @@ NAN_METHOD(set_glitch_filter) {
 
 
 
+NAN_METHOD(set_noise_filter) {
+  if(info.Length() < 4    ||
+     !info[0]->IsInt32()  || // pi
+     !info[1]->IsUint32() || // gpio
+     !info[2]->IsUint32() || // steady
+     !info[3]->IsUint32()    // active
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "set_noise_filter", ""));
+  }
+
+  int      pi     = info[0]->Int32Value();
+  unsigned gpio   = info[1]->Uint32Value();
+  unsigned steady = info[2]->Uint32Value();
+  unsigned active = info[3]->Uint32Value();
+
+  int rc = set_noise_filter(pi, gpio, steady, active);
+  if(rc != 0) {
+    return ThrowPigpiodError(rc, "set_noise_filter");
+  }
+
+  info.GetReturnValue().Set(rc);
+}
+
+
+
 // ###########################################################################
 // SPI
 // ###########################################################################
@@ -987,6 +1012,7 @@ NAN_MODULE_INIT(InitAll) {
   SetFunction(target, "gpio_write", gpio_write);
   SetFunction(target, "set_watchdog", set_watchdog);
   SetFunction(target, "set_glitch_filter", set_glitch_filter);
+  SetFunction(target, "set_noise_filter", set_noise_filter);
   SetFunction(target, "spi_open", spi_open);
   SetFunction(target, "spi_close", spi_close);
   SetFunction(target, "spi_xfer", spi_xfer);
