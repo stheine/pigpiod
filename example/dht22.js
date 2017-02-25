@@ -16,17 +16,17 @@ if(pi < 0) {
 }
 
 const interval = setInterval(() => {
-  const dht22Data = pigpiod.dht22(pi, 18);
-
-  if(dht22Data.status) {
-    console.log('failed: status=', dht22Data.status);
-  } else {
-    console.log(dht22Data);
-  }
+  pigpiod.dht22(pi, 18).then(dht22Data => {
+    if(dht22Data.status) {
+      console.log('failed: status=', dht22Data.status);
+    } else {
+      console.log(dht22Data);
+    }
+  });
 }, 3000);
 
 setTimeout(() => {
   clearInterval(interval);
   pigpiod.pigpio_stop(pi);
   process.exit();
-}, 10000);
+}, 30000);
