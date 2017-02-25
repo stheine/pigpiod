@@ -722,18 +722,10 @@ NAN_METHOD(get_pigpio_version) {
 
 // ###########################################################################
 // DHT22
-// This is a synchronous C implementation, as I failed to code a reliable
-// js based implementation (as - due to node.js's nature - it's
-// async handling might be busy with other tasks, so the
-// interrupt/ callback handling needed to read the DHT22 data is too slow).
 // The code is based on the example code taken from
 // http://abyz.co.uk/rpi/pigpio/examples.html
 // and I shrunk it down to the pure DHT22 handling, to make it as
 // simple as possible to get it included here.
-// Note: the function _decode_dht22() calculates temperature and humidity,
-//       but in fact I'm returning the binary data and re-run that same
-//       calculation in js. This is as I failed to return float/ double
-//       data from C code back into js - let me know if you know...
 // ###########################################################################
 
 #define DHT_GOOD         0
@@ -754,6 +746,7 @@ typedef void (*DHT22_CB_t)(DHT22_data_t);
 
 struct DHT22_s
 {
+  DHT22_CB_t   cb;
   int          _cb_id;
   int          _in_code;
   union
@@ -809,6 +802,11 @@ static void _decode_dht22(DHT22_t *self)
   }
 
   self->_data_finished = 1;
+
+  if (self->cb)
+  {
+    (self->cb)(self->_data);
+  }
 }
 
 static void _cb(
@@ -859,7 +857,7 @@ static void _cb(
   }
 }
 
-void DHT22(int pi, int gpio, char *buf)
+void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
 {
   int i;
   DHT22_t *self;
@@ -872,6 +870,7 @@ void DHT22(int pi, int gpio, char *buf)
   self->_data.temperature = 0.0;
   self->_data.humidity    = 0.0;
   self->_data.status      = 0;
+  self->cb                = cb_func;
   self->_in_code          = 0;
   self->_data_finished    = 0;
   self->_last_edge_tick = get_current_tick(pi) - 10000;
@@ -900,11 +899,12 @@ void DHT22(int pi, int gpio, char *buf)
 
   if (!self->_data_finished)
   {
-    memset((void *)buf, 0, 8);
-  }
-  else
-  {
-    memcpy((void *)buf, (void *)(&self->_code), 8);
+    self->_data.status = DHT_TIMEOUT;
+
+    if (self->cb)
+    {
+      (self->cb)(self->_data);
+    }
   }
 
   if (self->_cb_id >= 0)
@@ -916,20 +916,126 @@ void DHT22(int pi, int gpio, char *buf)
 }
 
 
+#if NODE_VERSION_AT_LEAST(0, 11, 13)
+static void dht22EventLoopHandler(uv_async_t* handle);
+#else
+static void dht22EventLoopHandler(uv_async_t* handle, int status);
+#endif
+
+
+class DhtCallback_t {
+public:
+  DhtCallback_t() : callback_(0) {
+  }
+
+  virtual ~DhtCallback_t() {
+    if (callback_) {
+      uv_unref((uv_handle_t *) &async_);
+      delete callback_;
+    }
+
+    uv_close((uv_handle_t *) &async_, 0);
+
+    callback_ = 0;
+  }
+
+  void AsyncSend() {
+    uv_async_send(&async_);
+  }
+
+  void SetCallback(Nan::Callback *callback) {
+    if (callback_) {
+      uv_unref((uv_handle_t *) &async_);
+      delete callback_;
+    }
+
+    callback_ = callback;
+
+    if (callback_) {
+      uv_ref((uv_handle_t *) &async_);
+    }
+  }
+
+  Nan::Callback *Callback() {
+    return callback_;
+  }
+
+protected:
+  uv_async_t async_;
+
+private:
+  Nan::Callback *callback_;
+};
+
+
+class Dht22_t : public DhtCallback_t {
+public:
+  Dht22_t() : DhtCallback_t() {
+    uv_async_init(uv_default_loop(), &async_, dht22EventLoopHandler);
+
+    // Prevent async from keeping event loop alive, for the time being.
+    uv_unref((uv_handle_t *) &async_);
+  }
+};
+
+
+static Dht22_t dht22_g;
+
+// Globals, protected by semaphore, passing the callback parameters
+// from the C-handler into the js-event-loop
+static float temperature_g;
+static float humidity_g;
+static int   status_g;
+
+// dht22Handler is not executed in the event loop thread
+void dht22Handler(DHT22_data_t r) {
+  uv_sem_wait(&sem_g);
+
+  temperature_g = r.temperature;
+  humidity_g    = r.humidity;
+  status_g      = r.status;
+
+  dht22_g.AsyncSend();
+}
+
+
+// dht22EventLoopHandler is executed in the event loop thread.
+#if NODE_VERSION_AT_LEAST(0, 11, 13)
+static void dht22EventLoopHandler(uv_async_t* handle) {
+#else
+static void dht22EventLoopHandler(uv_async_t* handle, int status) {
+#endif
+  Nan::HandleScope scope;
+
+  if (dht22_g.Callback()) {
+    v8::Local<v8::Value> args[3] = {
+      Nan::New<v8::Number>(temperature_g),
+      Nan::New<v8::Number>(humidity_g),
+      Nan::New<v8::Integer>(status_g)
+    };
+    dht22_g.Callback()->Call(3, args);
+  }
+
+  uv_sem_post(&sem_g);
+}
+
+
 static NAN_METHOD(dht22_get) {
   if(info.Length() < 3    ||
      !info[0]->IsInt32()  || // pi
      !info[1]->IsUint32() || // gpio
-     !info[2]->IsObject()    // buf    -> output buffer
+     !info[2]->IsFunction()  // handler
   ) {
     return Nan::ThrowError(Nan::ErrnoException(EINVAL, "get_dht22", ""));
   }
 
   int      pi   = info[0]->Int32Value();
   unsigned gpio = info[1]->Uint32Value();
-  char*    buf  = node::Buffer::Data(info[2]->ToObject());
+  Nan::Callback *nanCallback = new Nan::Callback(info[2].As<v8::Function>());
+  DHT22_CB_t callbackFunc = dht22Handler;
+  dht22_g.SetCallback(nanCallback);
 
-  DHT22(pi, gpio, buf);
+  DHT22(pi, gpio, callbackFunc);
 }
 
 
