@@ -29,4 +29,4 @@ setTimeout(() => {
   clearInterval(interval);
   pigpiod.pigpio_stop(pi);
   process.exit();
-}, 30000);
+}, 3000000);
