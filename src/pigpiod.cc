@@ -802,6 +802,11 @@ static void _decode_dht22(DHT22_t *self)
   }
 
   self->_data_finished = 1;
+
+  if (self->cb)
+  {
+    (self->cb)(self->_data);
+  }
 }
 
 static void _cb(
@@ -895,11 +900,11 @@ void DHT22(int pi, int gpio, DHT22_CB_t cb_func)
   if (!self->_data_finished)
   {
     self->_data.status = DHT_TIMEOUT;
-  }
 
-  if (self->cb)
-  {
-    (self->cb)(self->_data);
+    if (self->cb)
+    {
+      (self->cb)(self->_data);
+    }
   }
 
   if (self->_cb_id >= 0)
