@@ -215,3 +215,14 @@ The error handling is different, though: Instead of returning an error code, an 
 [pigpio library and pigpiod](http://abyz.co.uk/rpi/pigpio/) Thanks to _joan2937_ for the development and documentation of the pigpio C library.
 
 [pigpio](https://github.com/fivdi/pigpio) Thanks for _fivdi_ for his work on the pigpio module for Node.js. I used this as the base for my development and got additional development help.
+
+# Breaking change
+
+## 1.0.0
+
+The `dht22` call has been switched to an asynchronous implementation, returning a promise.
+
+## 2.0.0
+
+I have to revert the changes released in 1.0.0, as the async `dht22` API works fine in a standalone example,
+but causes intermittent process hangs in a project using additional API calls.
