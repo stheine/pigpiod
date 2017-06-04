@@ -985,6 +985,16 @@ NAN_MODULE_INIT(InitAll) {
   SetConst(target, "FALLING_EDGE", FALLING_EDGE);
   SetConst(target, "EITHER_EDGE", EITHER_EDGE);
 
+  /* level constants */
+  SetConst(target, "PI_OFF",  PI_OFF);
+  SetConst(target, "PI_ON",   PI_ON);
+
+  SetConst(target, "PI_CLEAR", PI_CLEAR);
+  SetConst(target, "PI_SET",   PI_SET);
+
+  SetConst(target, "PI_LOW",   PI_LOW);
+  SetConst(target, "PI_HIGH",  PI_HIGH);
+
   /* timeout constant */
   SetConst(target, "PI_TIMEOUT", PI_TIMEOUT);
 
