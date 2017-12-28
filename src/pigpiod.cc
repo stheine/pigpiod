@@ -17,6 +17,19 @@ static void gpioISREventLoopHandler(uv_async_t* handle, int status);
 
 
 // ###########################################################################
+// Generic
+// ###########################################################################
+
+char *v8ToCharPtr(v8::Local<v8::Value> v8Value) {
+  v8::String::Utf8Value string(v8Value);
+  char *charPtr = (char *) malloc(string.length() + 1);
+  strcpy(charPtr, *string);
+  return charPtr;
+}
+
+
+
+// ###########################################################################
 // Error handling
 // ###########################################################################
 
@@ -504,14 +517,6 @@ NAN_METHOD(spi_xfer) {
 // ###########################################################################
 // Serial
 // ###########################################################################
-
-char *v8ToCharPtr(v8::Local<v8::Value> v8Value) {
-  v8::String::Utf8Value string(v8Value);
-  char *charPtr = (char *) malloc(string.length() + 1);
-  strcpy(charPtr, *string);
-  return charPtr;
-}
-
 
 NAN_METHOD(serial_open) {
   if(info.Length() < 4    ||
