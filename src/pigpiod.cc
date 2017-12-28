@@ -183,7 +183,17 @@ static NAN_METHOD(callback_cancel) {
 // ###########################################################################
 
 NAN_METHOD(pigpio_start) {
-  int rc = pigpio_start(NULL, NULL);
+  if(info.Length() < 2    ||
+     !info[0]->IsString() || // addStr
+     !info[1]->IsString()    // portStr
+  ) {
+    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "pigpio_start", ""));
+  }
+
+  char* addrStr = v8ToCharPtr(info[0]->ToString());
+  char* portStr = v8ToCharPtr(info[1]->ToString());
+
+  int rc = pigpio_start(addrStr, portStr);
   if (rc < 0) {
     return ThrowPigpiodError(rc, "pigpio_start");
   }
