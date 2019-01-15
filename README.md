@@ -1,4 +1,4 @@
-# pigpiod
+# @stheine/pigpiod
 
 Node.js interface for **pigpiod** on the Raspberry Pi Zero, 1, 2, or 3.
 
@@ -27,7 +27,7 @@ sudo make install
 #### Step 2
 
 ```
-npm install pigpio
+npm install @stheine/pigpiod
 ```
 
 I have developed and tested on Node.js 6.2.0, so it should be working ok here. It might very well work on the earlier versions of Node.js.
@@ -35,7 +35,7 @@ I have developed and tested on Node.js 6.2.0, so it should be working ok here. I
 ## Usage
 
 ```
-const pigpiod = require('pigpiod');
+const pigpiod = require('@stheine/pigpiod');
 
 let pi  = pigpiod.pigpio_start();
 let spi = pigpiod.spi_open(pi, 0); // SPI channel 0
