@@ -17,7 +17,7 @@ The pigpio package is based on the
 required. It can be installed with the following commands:
 
 ```
-wget abyz.co.uk/rpi/pigpio/pigpio.zip
+wget abyz.me.uk/rpi/pigpio/pigpio.zip
 unzip pigpio.zip
 cd PIGPIO
 make
